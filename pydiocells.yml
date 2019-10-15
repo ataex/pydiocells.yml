@@ -4,16 +4,19 @@ services:
   cells:
     image: pydio/cells:latest
     volumes: 
-      - data:/root/.config/pydio/cells/data
-      - config:/root/.config
-      - nfs:/home/data/nfs
+      - nfs:/home/mount/nfs
+      # trying named volumes
+      - config:/root/.config/pydio/cells
+      #- data:/root/.config/pydio/cells/data
+      #- logs:/root/.config/pydio/cells/logs
+      #- services:/root/.config/pydio/cells/services
     environment:
-      - CELLS_BIND=files.${DOMAIN}:443
-      - CELLS_EXTERNAL=https://files.${DOMAIN}
+      - CELLS_BIND=files.${DOMAIN?Error}:443
+      - CELLS_EXTERNAL=https://files.${DOMAIN?Error}
       - PYDIO_LOGS_LEVEL=production
-      #- CELLS_NO_SSL=1
-      - PUID=${PUID?Variable not set}
-      - PGID=${PGID?Variable not set}
+      #- CELLS_NO_SSL=0
+      - PUID=${PUID?Error}
+      - PGID=${PGID?Error}
       - TZ=America/New_York
     networks:
       - traefik-public
@@ -25,11 +28,10 @@ services:
         max_attempts: 3
         window: 120s
       labels:
-        - traefik.frontend.rule=Host:files.${DOMAIN}
+        - traefik.frontend.rule=Host:files.${DOMAIN?Error}
         - traefik.enable=true
         - traefik.port=443
         - traefik.protocol=https
-        #- traefik.insecureSkipVerify=true
         - traefik.tags=traefik-public
         - traefik.docker.network=traefik-public
         # Traefik service that listens to HTTP
@@ -37,6 +39,7 @@ services:
         - traefik.redirectorservice.frontend.redirect.entryPoint=https
         # Traefik service that listens to HTTPS
         - traefik.webservice.frontend.entryPoints=https
+    # Remove if running for first time
     command: [ '/bin/sh', '-c', 'echo `tail -2 /etc/hosts | head -1 | cut -f 1` > /home/ip.txt; sed -i "/PeerAddress/ s/: .*/: \"`cat /home/ip.txt`\",/g" /root/.config/pydio/cells/pydio.json; exec /bin/docker-entrypoint.sh cells start' ]
 
   mysql:
@@ -44,10 +47,10 @@ services:
     volumes:
       - db-data:/var/lib/mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD?Error}
       - MYSQL_DATABASE=cells
       - MYSQL_USER=pydio
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD?Error}
     networks:
       - private
     deploy:
@@ -65,16 +68,20 @@ networks:
     driver: overlay
 
 volumes:
-  data:
-    driver: local
   config:
     driver: local
+#  data:
+#    driver: local
+#  logs:
+#    driver: local
+#  services:
+#    driver: local
   db-data:
     driver: local
   nfs:
     driver: local
     driver_opts:
       type: nfs
-      o: nfsvers=4,addr=${NFS_SERVER?error},rw
-      o: addr=${NFS_SERVER?error}
+      o: nfsvers=4,addr=${NFS_SERVER?Error},rw
+      o: addr=${NFS_SERVER?Error}
       device: ":/volume1/nfs"
